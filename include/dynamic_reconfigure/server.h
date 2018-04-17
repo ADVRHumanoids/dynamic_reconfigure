@@ -36,6 +36,7 @@
 /**
 
  Author: Blaise Gassend
+ Adapted to Xenomai-friendly mutex type: Arturo Laurenzi
 
  Handles synchronizing node state with the configuration server, and
  handling of services to get and set configuration.
@@ -46,7 +47,8 @@
 #define __SERVER_H__
 
 #include <boost/function.hpp>
-#include <boost/thread/recursive_mutex.hpp>
+#include <XBotInterface/Thread.h>
+#include <mutex>
 #include <ros/node_handle.h>
 #include <dynamic_reconfigure/ConfigDescription.h>
 #include <dynamic_reconfigure/Reconfigure.h>
@@ -57,6 +59,7 @@
 
 namespace dynamic_reconfigure
 {
+    
 /**
  * Keeps track of the reconfigure callback function.
  */
@@ -66,25 +69,26 @@ class Server
 public:
   Server(const ros::NodeHandle &nh = ros::NodeHandle("~")) :
     node_handle_(nh),
+    own_mutex_(XBot::Mutex::Type::RECURSIVE),
     mutex_(own_mutex_),
     own_mutex_warn_(true)
   {
     init();
   }
 
-  Server(boost::recursive_mutex &mutex, const ros::NodeHandle &nh = ros::NodeHandle("~")) :
-    node_handle_(nh),
-    mutex_(mutex),
-    own_mutex_warn_(false)
-  {
-    init();
-  }
+//   Server(XBot::Mutex &mutex, const ros::NodeHandle &nh = ros::NodeHandle("~")) :
+//     node_handle_(nh),
+//     mutex_(mutex),
+//     own_mutex_warn_(false)
+//   {
+//     init();
+//   }
 
   typedef boost::function<void(ConfigType &, uint32_t level)> CallbackType;
 
   void setCallback(const CallbackType &callback)
   {
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
     callback_ = callback;
     callCallback(config_, ~0); // At startup we need to load the configuration with all level bits set. (Everything has changed.)
     updateConfigInternal(config_);
@@ -92,7 +96,7 @@ public:
 
   void clearCallback()
   {
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
     callback_.clear();
   }
 
@@ -151,15 +155,15 @@ private:
   ConfigType min_;
   ConfigType max_;
   ConfigType default_;
-  boost::recursive_mutex &mutex_;
-  boost::recursive_mutex own_mutex_; // Used only if an external one isn't specified.
+  XBot::Mutex &mutex_;
+  XBot::Mutex own_mutex_; // Used only if an external one isn't specified.
   bool own_mutex_warn_;
 
 
 
   void PublishDescription()
   {
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
     //Copy over min_ max_ default_
     dynamic_reconfigure::ConfigDescription description_message = ConfigType::__getDescriptionMessage__();
 
@@ -178,7 +182,7 @@ private:
     max_ = ConfigType::__getMax__();
     default_ = ConfigType::__getDefault__();
 
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
     set_service_ = node_handle_.advertiseService("set_parameters",
         &Server<ConfigType>::setConfigCallback, this);
 
@@ -213,7 +217,7 @@ private:
   bool setConfigCallback(dynamic_reconfigure::Reconfigure::Request &req,
           dynamic_reconfigure::Reconfigure::Response &rsp)
   {
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
 
     ConfigType new_config = config_;
     new_config.__fromMessage__(req.config);
@@ -229,7 +233,7 @@ private:
 
   void updateConfigInternal(const ConfigType &config)
   {
-    boost::recursive_mutex::scoped_lock lock(mutex_);
+    std::lock_guard<XBot::Mutex> lock(mutex_);
     config_ = config;
     config_.__toServer__(node_handle_);
     dynamic_reconfigure::Config msg;
