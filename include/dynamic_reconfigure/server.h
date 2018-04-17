@@ -57,7 +57,7 @@
  * @todo Add diagnostics.
  */
 
-namespace dynamic_reconfigure
+namespace dynamic_reconfigure_advr
 {
     
 /**
