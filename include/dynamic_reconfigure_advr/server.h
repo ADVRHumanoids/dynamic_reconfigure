@@ -47,7 +47,7 @@
 #define __SERVER_H__
 
 #include <boost/function.hpp>
-#include <XBotInterface/Thread.h>
+#include <XCM/XBotThread.h>
 #include <mutex>
 #include <ros/node_handle.h>
 #include <dynamic_reconfigure/ConfigDescription.h>
